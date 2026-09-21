@@ -1,0 +1,22 @@
+{
+  "name": "kuriyeistanbul",
+  "version": "1.0.0",
+  "description": "KuriyeIstanbul.com - Istanbul kurye koordinasyon platformu",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5",
+    "lowdb": "^1.0.0",
+    "uuid": "^9.0.1",
+    "bcryptjs": "^2.4.3",
+    "cookie-session": "^2.1.0",
+    "dotenv": "^16.4.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

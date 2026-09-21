@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Paneli — KuriyeIstanbul.com</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">🛵 Kuriye<span class="dot">Istanbul</span> — Admin Paneli</div>
+  <nav class="toplinks">
+    <a href="/">Ana Sayfa</a>
+    <a href="#" id="logoutLink" style="display:none">Çıkış Yap</a>
+  </nav>
+</header>
+
+<div class="container">
+
+  <!-- GİRİŞ -->
+  <div id="authArea" class="grid two">
+    <div class="card">
+      <h2>Admin Girişi</h2>
+      <form id="loginForm">
+        <label>Kullanıcı Adı</label>
+        <input type="text" id="loginUser" required value="admin">
+        <label>Şifre</label>
+        <input type="password" id="loginPass" required>
+        <button type="submit">Giriş Yap</button>
+      </form>
+      <div id="loginMsg"></div>
+      <p style="font-size:0.82rem; color:var(--muted); margin-top:10px;">Varsayılan şifreyi sunucu konsolunda / .env dosyasında bulabilirsiniz.</p>
+    </div>
+  </div>
+
+  <!-- PANEL -->
+  <div id="dashArea" style="display:none">
+
+    <div class="stats" id="statsRow"></div>
+
+    <div class="tabs">
+      <button id="tabOrders" class="active" onclick="showAdminTab('orders')">📦 Siparişler</button>
+      <button id="tabCouriers" onclick="showAdminTab('couriers')">🧑‍✈️ Kuryeler</button>
+      <button id="tabChat" onclick="showAdminTab('chat')">💬 Sohbetleri İzle</button>
+    </div>
+
+    <div id="panelOrders">
+      <div id="ordersList"></div>
+    </div>
+
+    <div id="panelCouriers" style="display:none">
+      <div id="couriersList"></div>
+    </div>
+
+    <div id="panelChat" style="display:none" class="grid two">
+      <div class="card">
+        <h2>Aktif Siparişler</h2>
+        <div id="chatOrderPicker"></div>
+      </div>
+      <div class="card" id="adminChatCard" style="display:none">
+        <h2>Sohbet — <span id="adminChatCode"></span></h2>
+        <div class="chat-box">
+          <div class="chat-messages" id="adminChatMessages"></div>
+          <div class="chat-input">
+            <input type="text" id="adminChatInput" placeholder="Destek mesajı yazın...">
+            <button onclick="sendAdminChat()">Gönder</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/admin.js"></script>
+</body>
+</html>

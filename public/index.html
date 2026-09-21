@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KuriyeIstanbul.com — Hızlı Kurye ve Paket Teslimatı</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">🛵 Kuriye<span class="dot">Istanbul</span></div>
+  <nav class="toplinks">
+    <a href="/courier.html">Kurye Girişi</a>
+    <a href="/admin.html">Admin</a>
+  </nav>
+</header>
+
+<div class="container">
+  <div class="hero">
+    <h1>İstanbul içi hızlı kurye ve paket teslimatı</h1>
+    <p>Siparişinizi oluşturun, size en yakın kurye paketinizi alsın. Kurye ile canlı sohbet edin, teslimatı anlık takip edin.</p>
+  </div>
+
+  <div class="tabs">
+    <button id="tabNew" class="active" onclick="showTab('new')">📦 Yeni Sipariş</button>
+    <button id="tabTrack" onclick="showTab('track')">🔍 Siparişimi Takip Et</button>
+  </div>
+
+  <!-- YENİ SİPARİŞ -->
+  <div id="panelNew" class="grid two">
+    <div class="card">
+      <h2>Sipariş Bilgileri</h2>
+      <form id="orderForm">
+        <label>Ad Soyad *</label>
+        <input type="text" id="customerName" required placeholder="Adınız Soyadınız">
+
+        <label>Telefon Numarası *</label>
+        <input type="tel" id="customerPhone" required placeholder="05xx xxx xx xx">
+
+        <label>Alım Adresi (Nereden) *</label>
+        <textarea id="pickupAddress" required placeholder="Mahalle, sokak, bina no, ilçe"></textarea>
+
+        <label>Teslimat Adresi (Nereye) *</label>
+        <textarea id="dropoffAddress" required placeholder="Mahalle, sokak, bina no, ilçe"></textarea>
+
+        <label>Paket İçeriği / Boyutu</label>
+        <input type="text" id="packageInfo" placeholder="Örn: Evrak zarfı, küçük kutu, yemek...">
+
+        <label>Not (opsiyonel)</label>
+        <textarea id="notes" placeholder="Kuryeye iletmek istediğiniz özel notlar"></textarea>
+
+        <button type="submit">Siparişi Oluştur</button>
+      </form>
+      <div id="orderMsg"></div>
+      <div id="trackingResult" style="display:none" class="tracking-code-box">
+        <div>Sipariş oluşturuldu! Takip kodunuz:</div>
+        <div class="code" id="newTrackingCode"></div>
+        <div style="font-size:0.85rem; opacity:0.85">Bu kodu saklayın, "Siparişimi Takip Et" sekmesinden durumu görebilirsiniz.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Nasıl Çalışır?</h2>
+      <ol style="color:var(--muted); line-height:2;">
+        <li>Sipariş formunu doldurun, benzersiz bir takip kodu alın.</li>
+        <li>En yakın müsait kurye siparişinizi kabul eder.</li>
+        <li>Kurye ile canlı sohbet üzerinden iletişim kurabilirsiniz.</li>
+        <li>Paketiniz kapınıza teslim edilir, durumu anlık takip edersiniz.</li>
+      </ol>
+      <p style="color:var(--muted); font-size:0.88rem;">7/24 destek için admin ile de iletişime geçebilirsiniz.</p>
+    </div>
+  </div>
+
+  <!-- TAKİP -->
+  <div id="panelTrack" class="grid two" style="display:none">
+    <div class="card">
+      <h2>Siparişimi Takip Et</h2>
+      <label>Takip Kodu</label>
+      <input type="text" id="trackCode" placeholder="Örn: KI-AB12CD" style="text-transform:uppercase">
+      <button onclick="trackOrder()">Sorgula</button>
+      <div id="trackMsg"></div>
+
+      <div id="orderDetail" style="display:none; margin-top:20px;">
+        <div class="row" style="display:flex; justify-content:space-between; align-items:center;">
+          <strong>Durum:</strong>
+          <span id="statusBadge" class="badge"></span>
+        </div>
+        <p><strong>Nereden:</strong> <span id="detPickup"></span></p>
+        <p><strong>Nereye:</strong> <span id="detDropoff"></span></p>
+        <p><strong>Paket:</strong> <span id="detPackage"></span></p>
+        <p id="detCourierRow" style="display:none"><strong>Kurye:</strong> <span id="detCourier"></span></p>
+      </div>
+    </div>
+
+    <div class="card" id="chatCard" style="display:none">
+      <h2>💬 Kurye ile Sohbet</h2>
+      <div class="chat-box">
+        <div class="chat-messages" id="chatMessages"></div>
+        <div class="chat-input">
+          <input type="text" id="chatInput" placeholder="Mesajınızı yazın...">
+          <button onclick="sendChat()">Gönder</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">© 2026 KuriyeIstanbul.com — İstanbul içi kurye ve teslimat koordinasyon platformu</div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/customer.js"></script>
+</body>
+</html>

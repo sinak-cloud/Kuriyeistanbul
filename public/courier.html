@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kurye Paneli — KuriyeIstanbul.com</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">🛵 Kuriye<span class="dot">Istanbul</span> — Kurye Paneli</div>
+  <nav class="toplinks">
+    <a href="/">Ana Sayfa</a>
+    <a href="#" id="logoutLink" style="display:none">Çıkış Yap</a>
+  </nav>
+</header>
+
+<div class="container">
+
+  <!-- GİRİŞ / KAYIT -->
+  <div id="authArea" class="grid two">
+    <div class="card">
+      <h2>Kurye Girişi</h2>
+      <form id="loginForm">
+        <label>Telefon Numarası</label>
+        <input type="tel" id="loginPhone" required placeholder="05xx xxx xx xx">
+        <label>Şifre</label>
+        <input type="password" id="loginPassword" required>
+        <button type="submit">Giriş Yap</button>
+      </form>
+      <div id="loginMsg"></div>
+    </div>
+
+    <div class="card">
+      <h2>Yeni Kurye Kaydı</h2>
+      <form id="registerForm">
+        <label>Ad Soyad</label>
+        <input type="text" id="regName" required>
+        <label>Telefon Numarası</label>
+        <input type="tel" id="regPhone" required placeholder="05xx xxx xx xx">
+        <label>Şifre</label>
+        <input type="password" id="regPassword" required minlength="4">
+        <button type="submit" class="secondary">Kayıt Ol</button>
+      </form>
+      <div id="registerMsg"></div>
+      <p style="font-size:0.85rem; color:var(--muted); margin-top:10px;">Kayıt sonrası hesabınızın admin tarafından onaylanması gerekir.</p>
+    </div>
+  </div>
+
+  <!-- KURYE PANELİ -->
+  <div id="dashArea" style="display:none">
+    <h2 id="welcomeMsg"></h2>
+
+    <div class="tabs">
+      <button id="tabAvail" class="active" onclick="showDashTab('avail')">📦 Müsait Siparişler</button>
+      <button id="tabMine" onclick="showDashTab('mine')">🚚 Siparişlerim</button>
+    </div>
+
+    <div id="panelAvail">
+      <div id="availList"></div>
+    </div>
+
+    <div id="panelMine" style="display:none">
+      <div id="mineList"></div>
+    </div>
+  </div>
+
+  <!-- SOHBET MODAL BENZERİ PANEL -->
+  <div id="chatPanel" class="card" style="display:none; margin-top:24px;">
+    <h2>💬 Müşteri ile Sohbet — <span id="chatOrderCode"></span></h2>
+    <div class="chat-box">
+      <div class="chat-messages" id="chatMessages"></div>
+      <div class="chat-input">
+        <input type="text" id="chatInput" placeholder="Mesajınızı yazın...">
+        <button onclick="sendChat()">Gönder</button>
+      </div>
+    </div>
+    <button class="ghost" onclick="closeChat()">Sohbeti Kapat</button>
+  </div>
+
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/courier.js"></script>
+</body>
+</html>
