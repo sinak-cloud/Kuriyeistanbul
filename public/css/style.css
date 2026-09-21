@@ -170,3 +170,12 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   background: var(--secondary); color: #fff; border-radius: 12px; padding: 20px; text-align: center; margin-top: 16px;
 }
 .tracking-code-box .code { font-size: 1.5rem; font-weight: 800; letter-spacing: 2px; color: var(--primary); margin: 8px 0; }
+
+.map-picker { height: 220px; border-radius: 12px; margin-top: 10px; overflow: hidden; border: 1px solid var(--border); }
+.map-hint { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
+#starPicker span { color: #d1d5db; transition: color 0.1s; }
+#starPicker span.filled { color: #f59e0b; }
+.earn-card { background: linear-gradient(135deg, var(--secondary), #123a6b); color: #fff; border-radius: var(--radius); padding: 22px; }
+.earn-card .big { font-size: 1.8rem; font-weight: 800; }
+.earn-card .label { font-size: 0.82rem; opacity: 0.85; }
+.courier-emoji-icon { font-size: 1.6rem; text-align: center; line-height: 30px; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4)); }

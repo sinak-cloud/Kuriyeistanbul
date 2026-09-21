@@ -14,6 +14,10 @@ const io = new Server(server);
 
 const PORT = process.env.PORT || 3000;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'kuriyeistanbul-gizli-anahtar-degistir';
+const BASE_DELIVERY_FEE = Number(process.env.BASE_DELIVERY_FEE || 150);
+
+// Kuryelerin anlık konumu — kalıcı değil, sadece bellekte (RAM) tutulur
+const liveLocations = {}; // orderId -> { lat, lng, updatedAt }
 
 app.use(express.json());
 app.use(cookieSession({
@@ -46,18 +50,46 @@ function publicOrder(order) {
     status: order.status,
     pickupAddress: order.pickupAddress,
     dropoffAddress: order.dropoffAddress,
+    pickupLat: order.pickupLat ?? null,
+    pickupLng: order.pickupLng ?? null,
+    dropoffLat: order.dropoffLat ?? null,
+    dropoffLng: order.dropoffLng ?? null,
     packageInfo: order.packageInfo,
     courierName: order.courierName || null,
+    price: order.price ?? null,
+    rating: order.rating ?? null,
     createdAt: order.createdAt,
     updatedAt: order.updatedAt
   };
+}
+
+function haversineKm(lat1, lng1, lat2, lng2) {
+  if ([lat1, lng1, lat2, lng2].some(v => v === null || v === undefined || isNaN(v))) return null;
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// Bir kuryenin tüm siparişlerinden ortalama puanını hesaplar
+function courierRatingStats(courierId) {
+  const rated = db.get('orders').filter(o => o.courierId === courierId && typeof o.rating === 'number').value();
+  if (!rated.length) return { avg: null, count: 0 };
+  const sum = rated.reduce((s, o) => s + o.rating, 0);
+  return { avg: Math.round((sum / rated.length) * 10) / 10, count: rated.length };
 }
 
 // ================= MÜŞTERİ (CUSTOMER) API =================
 
 // Yeni sipariş oluştur
 app.post('/api/orders', (req, res) => {
-  const { customerName, customerPhone, pickupAddress, dropoffAddress, packageInfo, notes } = req.body;
+  const {
+    customerName, customerPhone, pickupAddress, dropoffAddress, packageInfo, notes,
+    pickupLat, pickupLng, dropoffLat, dropoffLng
+  } = req.body;
   if (!customerName || !customerPhone || !pickupAddress || !dropoffAddress) {
     return res.status(400).json({ error: 'Lütfen tüm zorunlu alanları doldurun.' });
   }
@@ -68,11 +100,18 @@ app.post('/api/orders', (req, res) => {
     customerPhone,
     pickupAddress,
     dropoffAddress,
+    pickupLat: (typeof pickupLat === 'number') ? pickupLat : null,
+    pickupLng: (typeof pickupLng === 'number') ? pickupLng : null,
+    dropoffLat: (typeof dropoffLat === 'number') ? dropoffLat : null,
+    dropoffLng: (typeof dropoffLng === 'number') ? dropoffLng : null,
     packageInfo: packageInfo || '',
     notes: notes || '',
     status: 'beklemede',
     courierId: null,
     courierName: null,
+    price: BASE_DELIVERY_FEE,
+    rating: null,
+    ratingComment: '',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };
@@ -87,7 +126,30 @@ app.get('/api/orders/track/:code', (req, res) => {
   const order = db.get('orders').find({ trackingCode: req.params.code.toUpperCase() }).value();
   if (!order) return res.status(404).json({ error: 'Bu takip koduna ait sipariş bulunamadı.' });
   const messages = db.get('messages').filter({ orderId: order.id }).value();
-  res.json({ order: publicOrder(order), messages });
+  const courierLocation = liveLocations[order.id] || null;
+  let etaKm = null;
+  if (courierLocation && order.dropoffLat && order.dropoffLng) {
+    etaKm = haversineKm(courierLocation.lat, courierLocation.lng, order.dropoffLat, order.dropoffLng);
+  }
+  res.json({ order: publicOrder(order), messages, courierLocation, etaKm });
+});
+
+// Müşteri teslimattan sonra kuryeyi puanlar
+app.post('/api/orders/track/:code/rate', (req, res) => {
+  const { rating, comment } = req.body;
+  const stars = Number(rating);
+  if (!stars || stars < 1 || stars > 5) return res.status(400).json({ error: 'Geçerli bir puan (1-5) girin.' });
+  const order = db.get('orders').find({ trackingCode: req.params.code.toUpperCase() }).value();
+  if (!order) return res.status(404).json({ error: 'Sipariş bulunamadı.' });
+  if (order.status !== 'teslim edildi') return res.status(400).json({ error: 'Sadece teslim edilen siparişler puanlanabilir.' });
+  if (typeof order.rating === 'number') return res.status(400).json({ error: 'Bu sipariş zaten puanlanmış.' });
+  db.get('orders').find({ id: order.id }).assign({
+    rating: stars,
+    ratingComment: (comment || '').trim(),
+    updatedAt: new Date().toISOString()
+  }).write();
+  if (order.courierId) io.to('admins').emit('courier:rated', { courierId: order.courierId });
+  res.json({ success: true });
 });
 
 // ================= KURYE (COURIER) API =================
@@ -130,13 +192,43 @@ app.post('/api/courier/logout', (req, res) => {
 app.get('/api/courier/me', requireCourier, (req, res) => {
   const courier = db.get('couriers').find({ id: req.session.courierId }).value();
   if (!courier) return res.status(404).json({ error: 'Kurye bulunamadı.' });
-  res.json({ id: courier.id, name: courier.name, phone: courier.phone });
+  res.json({ id: courier.id, name: courier.name, phone: courier.phone, ...courierRatingStats(courier.id) });
+});
+
+// Kuryenin kazanç özeti: toplam teslimat, toplam kazanç, bugünkü kazanç
+app.get('/api/courier/earnings', requireCourier, (req, res) => {
+  const delivered = db.get('orders')
+    .filter(o => o.courierId === req.session.courierId && o.status === 'teslim edildi')
+    .value();
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayOrders = delivered.filter(o => (o.updatedAt || '').slice(0, 10) === todayStr);
+  res.json({
+    totalDeliveries: delivered.length,
+    totalEarnings: delivered.reduce((s, o) => s + (o.price || 0), 0),
+    todayDeliveries: todayOrders.length,
+    todayEarnings: todayOrders.reduce((s, o) => s + (o.price || 0), 0),
+    ...courierRatingStats(req.session.courierId),
+    recent: delivered.slice(-10).reverse().map(o => ({
+      trackingCode: o.trackingCode, price: o.price, updatedAt: o.updatedAt, rating: o.rating
+    }))
+  });
 });
 
 // Bekleyen (atanmamış) siparişler + kendi siparişleri
+// ?lat= & ?lng= verilirse müsait siparişler kuryenin konumuna göre yakınlıkla sıralanır
 app.get('/api/courier/orders', requireCourier, (req, res) => {
   const all = db.get('orders').value();
-  const available = all.filter(o => o.status === 'beklemede');
+  let available = all.filter(o => o.status === 'beklemede');
+  const myLat = Number(req.query.lat), myLng = Number(req.query.lng);
+  if (!isNaN(myLat) && !isNaN(myLng)) {
+    available = available
+      .map(o => ({ ...o, distanceKm: haversineKm(myLat, myLng, o.pickupLat, o.pickupLng) }))
+      .sort((a, b) => {
+        if (a.distanceKm === null) return 1;
+        if (b.distanceKm === null) return -1;
+        return a.distanceKm - b.distanceKm;
+      });
+  }
   const mine = all.filter(o => o.courierId === req.session.courierId);
   res.json({ available, mine });
 });
@@ -167,6 +259,7 @@ app.patch('/api/courier/orders/:id/status', requireCourier, (req, res) => {
   if (!order) return res.status(404).json({ error: 'Sipariş bulunamadı veya size ait değil.' });
   db.get('orders').find({ id: order.id }).assign({ status, updatedAt: new Date().toISOString() }).write();
   const updated = db.get('orders').find({ id: order.id }).value();
+  if (['teslim edildi', 'iptal'].includes(status)) delete liveLocations[order.id];
   io.to('admins').emit('order:update', updated);
   io.to('order:' + order.id).emit('order:update', publicOrder(updated));
   res.json({ success: true, order: updated });
@@ -200,9 +293,18 @@ app.get('/api/admin/orders', requireAdmin, (req, res) => {
 
 app.get('/api/admin/couriers', requireAdmin, (req, res) => {
   const couriers = db.get('couriers').value().map(c => ({
-    id: c.id, name: c.name, phone: c.phone, active: c.active, createdAt: c.createdAt
+    id: c.id, name: c.name, phone: c.phone, active: c.active, createdAt: c.createdAt,
+    ...courierRatingStats(c.id)
   }));
   res.json(couriers);
+});
+
+// Admin bir siparişin ücretini değiştirir
+app.patch('/api/admin/orders/:id/price', requireAdmin, (req, res) => {
+  const price = Number(req.body.price);
+  if (isNaN(price) || price < 0) return res.status(400).json({ error: 'Geçersiz ücret.' });
+  db.get('orders').find({ id: req.params.id }).assign({ price, updatedAt: new Date().toISOString() }).write();
+  res.json({ success: true });
 });
 
 app.post('/api/admin/couriers/:id/approve', requireAdmin, (req, res) => {
@@ -236,6 +338,7 @@ app.patch('/api/admin/orders/:id/status', requireAdmin, (req, res) => {
   const { status } = req.body;
   db.get('orders').find({ id: req.params.id }).assign({ status, updatedAt: new Date().toISOString() }).write();
   const updated = db.get('orders').find({ id: req.params.id }).value();
+  if (['teslim edildi', 'iptal'].includes(status)) delete liveLocations[updated.id];
   io.to('order:' + updated.id).emit('order:update', publicOrder(updated));
   res.json({ success: true, order: updated });
 });
@@ -285,6 +388,20 @@ io.on('connection', (socket) => {
     db.get('messages').push(message).write();
     io.to('order:' + orderId).emit('chat:message', message);
     io.to('admins').emit('chat:message', message);
+  });
+
+  // Kurye konumunu paylaşır (sadece bellekte tutulur, kalıcı değil)
+  socket.on('courier:location', (payload) => {
+    const { orderId, lat, lng } = payload || {};
+    if (!orderId || typeof lat !== 'number' || typeof lng !== 'number') return;
+    const order = db.get('orders').find({ id: orderId }).value();
+    if (!order || !['kabul edildi', 'yolda'].includes(order.status)) return;
+    const loc = { lat, lng, updatedAt: new Date().toISOString() };
+    liveLocations[orderId] = loc;
+    const etaKm = order.dropoffLat && order.dropoffLng
+      ? haversineKm(lat, lng, order.dropoffLat, order.dropoffLng) : null;
+    io.to('order:' + orderId).emit('courier:location', { orderId, ...loc, etaKm });
+    io.to('admins').emit('courier:location', { orderId, ...loc, etaKm });
   });
 });
 

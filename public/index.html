@@ -4,7 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>KuriyeIstanbul.com — Hızlı Kurye ve Paket Teslimatı</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0b2545">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
 <link rel="stylesheet" href="/css/style.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
 
@@ -40,9 +45,13 @@
 
         <label>Alım Adresi (Nereden) *</label>
         <textarea id="pickupAddress" required placeholder="Mahalle, sokak, bina no, ilçe"></textarea>
+        <button type="button" class="ghost" style="margin-top:8px" onclick="toggleMap('pickup')">📍 Haritadan seç</button>
+        <div id="pickupMap" class="map-picker" style="display:none"></div>
 
         <label>Teslimat Adresi (Nereye) *</label>
         <textarea id="dropoffAddress" required placeholder="Mahalle, sokak, bina no, ilçe"></textarea>
+        <button type="button" class="ghost" style="margin-top:8px" onclick="toggleMap('dropoff')">📍 Haritadan seç</button>
+        <div id="dropoffMap" class="map-picker" style="display:none"></div>
 
         <label>Paket İçeriği / Boyutu</label>
         <input type="text" id="packageInfo" placeholder="Örn: Evrak zarfı, küçük kutu, yemek...">
@@ -105,10 +114,30 @@
     </div>
   </div>
 
+  <!-- CANLI TAKİP HARİTASI -->
+  <div class="card" id="liveMapCard" style="display:none; margin-top:20px;">
+    <h2>🛵 Canlı Konum</h2>
+    <div id="etaText" class="meta" style="margin-bottom:10px; font-weight:600; color:var(--secondary)"></div>
+    <div id="liveMap" style="height:320px; border-radius:12px; overflow:hidden;"></div>
+  </div>
+
+  <!-- PUANLAMA -->
+  <div class="card" id="ratingCard" style="display:none; margin-top:20px;">
+    <h2>⭐ Kuryeyi Değerlendir</h2>
+    <div id="starPicker" style="font-size:2rem; cursor:pointer; letter-spacing:4px;">
+      <span data-star="1">☆</span><span data-star="2">☆</span><span data-star="3">☆</span><span data-star="4">☆</span><span data-star="5">☆</span>
+    </div>
+    <textarea id="ratingComment" placeholder="İsteğe bağlı yorum..." style="margin-top:10px"></textarea>
+    <button onclick="submitRating()">Değerlendirmeyi Gönder</button>
+    <div id="ratingMsg"></div>
+  </div>
+
   <div class="footer-note">© 2026 KuriyeIstanbul.com — İstanbul içi kurye ve teslimat koordinasyon platformu</div>
 </div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/customer.js"></script>
+<script src="/js/pwa.js"></script>
 </body>
 </html>

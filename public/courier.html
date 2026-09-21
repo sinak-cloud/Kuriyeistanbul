@@ -4,7 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Kurye Paneli — KuriyeIstanbul.com</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0b2545">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
 <link rel="stylesheet" href="/css/style.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body>
 
@@ -55,14 +60,35 @@
     <div class="tabs">
       <button id="tabAvail" class="active" onclick="showDashTab('avail')">📦 Müsait Siparişler</button>
       <button id="tabMine" onclick="showDashTab('mine')">🚚 Siparişlerim</button>
+      <button id="tabEarn" onclick="showDashTab('earn')">💰 Kazançlarım</button>
     </div>
 
     <div id="panelAvail">
+      <button class="ghost" onclick="sortByMyLocation()" style="margin-bottom:14px;">📍 Bana Yakın Sırala</button>
       <div id="availList"></div>
     </div>
 
     <div id="panelMine" style="display:none">
       <div id="mineList"></div>
+    </div>
+
+    <div id="panelEarn" style="display:none">
+      <div class="grid two">
+        <div class="earn-card">
+          <div class="label">Toplam Kazanç</div>
+          <div class="big" id="earnTotal">-</div>
+          <div class="label" style="margin-top:10px">Toplam Teslimat</div>
+          <div class="big" id="earnCount">-</div>
+        </div>
+        <div class="earn-card">
+          <div class="label">Bugünkü Kazanç</div>
+          <div class="big" id="earnToday">-</div>
+          <div class="label" style="margin-top:10px">Ortalama Puan</div>
+          <div class="big" id="earnRating">-</div>
+        </div>
+      </div>
+      <h2 style="margin-top:24px">Son Teslimatlar</h2>
+      <div id="earnRecent"></div>
     </div>
   </div>
 
@@ -81,7 +107,9 @@
 
 </div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/courier.js"></script>
+<script src="/js/pwa.js"></script>
 </body>
 </html>

@@ -99,8 +99,8 @@ function renderOrders() {
       <p><strong>Müşteri:</strong> ${escapeHtml(o.customerName)} — ${escapeHtml(o.customerPhone)}</p>
       <p><strong>Nereden:</strong> ${escapeHtml(o.pickupAddress)}</p>
       <p><strong>Nereye:</strong> ${escapeHtml(o.dropoffAddress)}</p>
-      <p class="meta">${o.courierName ? 'Kurye: ' + escapeHtml(o.courierName) : 'Kurye atanmadı'}</p>
-      <div class="row" style="margin-top:10px; gap:8px;">
+      <p class="meta">${o.courierName ? 'Kurye: ' + escapeHtml(o.courierName) : 'Kurye atanmadı'} ${o.rating ? '— ' + o.rating + ' ⭐' : ''}</p>
+      <div class="row" style="margin-top:10px; gap:8px; flex-wrap:wrap;">
         <select onchange="assignCourier('${o.id}', this.value)" style="width:auto;">
           <option value="">Kurye ata...</option>
           ${(window._couriers || []).filter(c => c.active).map(c => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join('')}
@@ -113,9 +113,19 @@ function renderOrders() {
           <option value="teslim edildi">Teslim Edildi</option>
           <option value="iptal">İptal</option>
         </select>
+        <input type="number" min="0" value="${o.price ?? ''}" placeholder="Ücret (₺)" style="width:110px" onchange="changePrice('${o.id}', this.value)">
       </div>
     </div>
   `).join('');
+}
+
+async function changePrice(orderId, price) {
+  if (price === '' || isNaN(Number(price))) return;
+  await fetch(`/api/admin/orders/${orderId}/price`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ price: Number(price) })
+  });
+  loadOrders();
 }
 
 function renderCouriers(list) {
@@ -127,7 +137,7 @@ function renderCouriers(list) {
         <strong>${escapeHtml(c.name)}</strong>
         <span class="badge ${c.active ? 'teslim-edildi' : 'beklemede'}">${c.active ? 'Aktif' : 'Onay Bekliyor'}</span>
       </div>
-      <p class="meta">${escapeHtml(c.phone)}</p>
+      <p class="meta">${escapeHtml(c.phone)} ${c.avg ? '— ' + c.avg + ' ⭐ (' + c.count + ' değerlendirme)' : ''}</p>
       <div class="row" style="margin-top:8px;">
         ${!c.active ? `<button onclick="approveCourier('${c.id}')">Onayla</button>` : `<button class="ghost" onclick="deactivateCourier('${c.id}')">Devre Dışı Bırak</button>`}
       </div>

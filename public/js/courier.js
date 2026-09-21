@@ -1,6 +1,9 @@
 const socket = io();
 let me = null;
 let openChatOrderId = null;
+let myLastCoords = null;
+let locationWatchId = null;
+let activeSharingOrderIds = new Set();
 
 async function init() {
   try {
@@ -74,8 +77,50 @@ function enterDashboard() {
 function showDashTab(tab) {
   document.getElementById('panelAvail').style.display = tab === 'avail' ? 'block' : 'none';
   document.getElementById('panelMine').style.display = tab === 'mine' ? 'block' : 'none';
+  document.getElementById('panelEarn').style.display = tab === 'earn' ? 'block' : 'none';
   document.getElementById('tabAvail').classList.toggle('active', tab === 'avail');
   document.getElementById('tabMine').classList.toggle('active', tab === 'mine');
+  document.getElementById('tabEarn').classList.toggle('active', tab === 'earn');
+  if (tab === 'earn') loadEarnings();
+}
+
+// ---- Konum paylaşımı: aktif siparişi olan kurye otomatik konum gönderir ----
+function ensureLocationSharing() {
+  if (locationWatchId !== null || !navigator.geolocation) return;
+  locationWatchId = navigator.geolocation.watchPosition((pos) => {
+    myLastCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    activeSharingOrderIds.forEach(orderId => {
+      socket.emit('courier:location', { orderId, lat: myLastCoords.lat, lng: myLastCoords.lng });
+    });
+  }, () => { /* konum reddedildi, sessizce geç */ }, { enableHighAccuracy: true, maximumAge: 5000 });
+}
+
+function sortByMyLocation() {
+  if (!navigator.geolocation) { alert('Tarayıcınız konum özelliğini desteklemiyor.'); return; }
+  navigator.geolocation.getCurrentPosition((pos) => {
+    myLastCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    loadOrders();
+  }, () => alert('Konumunuza erişilemedi. Lütfen konum iznini kontrol edin.'));
+}
+
+async function loadEarnings() {
+  const res = await fetch('/api/courier/earnings');
+  const d = await res.json();
+  document.getElementById('earnTotal').textContent = d.totalEarnings + ' ₺';
+  document.getElementById('earnCount').textContent = d.totalDeliveries;
+  document.getElementById('earnToday').textContent = d.todayEarnings + ' ₺';
+  document.getElementById('earnRating').textContent = d.avg ? `${d.avg} ⭐ (${d.count})` : 'Henüz yok';
+  const el = document.getElementById('earnRecent');
+  if (!d.recent.length) { el.innerHTML = '<div class="empty-state">Henüz teslimat yok.</div>'; return; }
+  el.innerHTML = d.recent.map(o => `
+    <div class="order-item">
+      <div class="row">
+        <strong>${o.trackingCode}</strong>
+        <span>${o.price} ₺</span>
+      </div>
+      <p class="meta">${new Date(o.updatedAt).toLocaleString('tr-TR')} ${o.rating ? '— ' + o.rating + ' ⭐' : ''}</p>
+    </div>
+  `).join('');
 }
 
 function statusLabel(status) {
@@ -87,10 +132,17 @@ function statusLabel(status) {
 }
 
 async function loadOrders() {
-  const res = await fetch('/api/courier/orders');
+  let url = '/api/courier/orders';
+  if (myLastCoords) url += `?lat=${myLastCoords.lat}&lng=${myLastCoords.lng}`;
+  const res = await fetch(url);
   const data = await res.json();
   renderAvailable(data.available);
   renderMine(data.mine);
+
+  // Aktif (kabul edildi / yolda) siparişler için otomatik konum paylaşımını başlat
+  const active = data.mine.filter(o => ['kabul edildi', 'yolda'].includes(o.status));
+  activeSharingOrderIds = new Set(active.map(o => o.id));
+  if (active.length) ensureLocationSharing();
 }
 
 function renderAvailable(list) {
@@ -104,7 +156,7 @@ function renderAvailable(list) {
       </div>
       <p><strong>Nereden:</strong> ${escapeHtml(o.pickupAddress)}</p>
       <p><strong>Nereye:</strong> ${escapeHtml(o.dropoffAddress)}</p>
-      <p class="meta">${o.packageInfo ? 'Paket: ' + escapeHtml(o.packageInfo) : ''}</p>
+      <p class="meta">${o.packageInfo ? 'Paket: ' + escapeHtml(o.packageInfo) : ''} ${o.price ? '— ' + o.price + ' ₺' : ''} ${(typeof o.distanceKm === 'number') ? '— 📍 ' + o.distanceKm.toFixed(1) + ' km' : ''}</p>
       <button onclick="acceptOrder('${o.id}')">Siparişi Kabul Et</button>
     </div>
   `).join('');
