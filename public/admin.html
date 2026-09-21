@@ -47,6 +47,8 @@
       <button id="tabOrders" class="active" onclick="showAdminTab('orders')">📦 Siparişler</button>
       <button id="tabCouriers" onclick="showAdminTab('couriers')">🧑‍✈️ Kuryeler</button>
       <button id="tabChat" onclick="showAdminTab('chat')">💬 Sohbetleri İzle</button>
+      <button id="tabBusiness" onclick="showAdminTab('business')">🏢 İşletmeler (B2B)</button>
+      <button id="tabAnalytics" onclick="showAdminTab('analytics')">📊 Analitik</button>
     </div>
 
     <div id="panelOrders">
@@ -70,6 +72,37 @@
             <input type="text" id="adminChatInput" placeholder="Destek mesajı yazın...">
             <button onclick="sendAdminChat()">Gönder</button>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="panelBusiness" style="display:none" class="grid two">
+      <div class="card">
+        <h2>Yeni İşletme Ekle</h2>
+        <label>İşletme Adı</label>
+        <input type="text" id="bizName" placeholder="Örn: Ada Restoran">
+        <label>İletişim Telefonu</label>
+        <input type="tel" id="bizPhone" placeholder="05xx xxx xx xx">
+        <button onclick="createBusiness()">İşletme Oluştur + API Anahtarı Üret</button>
+        <div id="bizMsg"></div>
+        <p style="font-size:0.82rem; color:var(--muted); margin-top:10px;">İşletme, verdiğiniz API anahtarını <code>X-Api-Key</code> başlığıyla <code>POST /api/business/orders</code> adresine göndererek otomatik sipariş oluşturabilir.</p>
+      </div>
+      <div class="card">
+        <h2>Kayıtlı İşletmeler</h2>
+        <div id="businessList"></div>
+      </div>
+    </div>
+
+    <div id="panelAnalytics" style="display:none">
+      <div class="stats" id="analyticsStats"></div>
+      <div class="grid two">
+        <div class="card">
+          <h2>Saatlik Sipariş Dağılımı (son 30 gün)</h2>
+          <div id="hourChart"></div>
+        </div>
+        <div class="card">
+          <h2>Günlere Göre Dağılım (son 30 gün)</h2>
+          <div id="dayChart"></div>
         </div>
       </div>
     </div>

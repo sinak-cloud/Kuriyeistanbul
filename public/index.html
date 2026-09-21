@@ -16,6 +16,7 @@
 <header class="topbar">
   <div class="brand">🛵 Kuriye<span class="dot">Istanbul</span></div>
   <nav class="toplinks">
+    <a href="/business.html">İşletmeler İçin</a>
     <a href="/courier.html">Kurye Girişi</a>
     <a href="/admin.html">Admin</a>
   </nav>
@@ -36,6 +37,7 @@
   <div class="tabs">
     <button id="tabNew" class="active" onclick="showTab('new')">📦 Yeni Sipariş</button>
     <button id="tabTrack" onclick="showTab('track')">🔍 Siparişimi Takip Et</button>
+    <button id="tabHistory" onclick="showTab('history')">🗂️ Geçmiş Siparişlerim</button>
   </div>
 
   <!-- YENİ SİPARİŞ -->
@@ -59,8 +61,25 @@
         <button type="button" class="ghost" style="margin-top:8px" onclick="toggleMap('dropoff')">📍 Haritadan seç</button>
         <div id="dropoffMap" class="map-picker" style="display:none"></div>
 
+        <label>Ek Duraklar (opsiyonel, virgülle ayırın, en fazla 5)</label>
+        <input type="text" id="extraStops" placeholder="Örn: Üsküdar İskele, Bostancı Sahil">
+
         <label>Paket İçeriği / Boyutu</label>
         <input type="text" id="packageInfo" placeholder="Örn: Evrak zarfı, küçük kutu, yemek...">
+
+        <label>Ne zaman?</label>
+        <div style="display:flex; gap:16px; margin-top:6px;">
+          <label style="display:flex; align-items:center; gap:6px; font-weight:400; margin:0;">
+            <input type="radio" name="whenType" value="now" checked onchange="toggleSchedule()" style="width:auto"> Şimdi
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; font-weight:400; margin:0;">
+            <input type="radio" name="whenType" value="scheduled" onchange="toggleSchedule()" style="width:auto"> Planlı
+          </label>
+        </div>
+        <input type="datetime-local" id="scheduledFor" style="display:none; margin-top:10px;">
+
+        <label>Referans Kodu (varsa, 20₺ indirim)</label>
+        <input type="text" id="referralCode" placeholder="Örn: KI12345" style="text-transform:uppercase">
 
         <label>Not (opsiyonel)</label>
         <textarea id="notes" placeholder="Kuryeye iletmek istediğiniz özel notlar"></textarea>
@@ -71,7 +90,12 @@
       <div id="trackingResult" style="display:none" class="tracking-code-box">
         <div>Sipariş oluşturuldu! Takip kodunuz:</div>
         <div class="code" id="newTrackingCode"></div>
-        <div style="font-size:0.85rem; opacity:0.85">Bu kodu saklayın, "Siparişimi Takip Et" sekmesinden durumu görebilirsiniz.</div>
+        <div id="newOrderPrice" style="margin-top:6px; font-weight:700;"></div>
+        <div style="font-size:0.85rem; opacity:0.85; margin-top:8px;">Bu kodu saklayın, "Siparişimi Takip Et" sekmesinden durumu görebilirsiniz.</div>
+        <div style="margin-top:14px; padding-top:14px; border-top:1px solid rgba(255,255,255,0.2);">
+          <div style="font-size:0.85rem; opacity:0.85">🔐 Teslimat kodunuz (sadece paket elinize geçince kuryeye söyleyin):</div>
+          <div class="code" id="newDeliveryCode" style="font-size:1.3rem"></div>
+        </div>
       </div>
     </div>
 
@@ -103,8 +127,15 @@
         </div>
         <p><strong>Nereden:</strong> <span id="detPickup"></span></p>
         <p><strong>Nereye:</strong> <span id="detDropoff"></span></p>
+        <p id="detStopsRow" style="display:none"><strong>Ek Duraklar:</strong> <span id="detStops"></span></p>
         <p><strong>Paket:</strong> <span id="detPackage"></span></p>
+        <p id="detScheduleRow" style="display:none"><strong>Planlanan Zaman:</strong> <span id="detSchedule"></span></p>
+        <p><strong>Ücret:</strong> <span id="detPrice"></span></p>
         <p id="detCourierRow" style="display:none"><strong>Kurye:</strong> <span id="detCourier"></span></p>
+        <div id="detCodeBox" style="display:none; background:var(--secondary); color:#fff; border-radius:10px; padding:14px; margin-top:10px; text-align:center;">
+          <div style="font-size:0.82rem; opacity:0.85">🔐 Teslimat Kodunuz — sadece paket elinize geçtiğinde kuryeye söyleyin</div>
+          <div style="font-size:1.4rem; font-weight:800; letter-spacing:3px; color:var(--primary); margin-top:4px;" id="detDeliveryCode"></div>
+        </div>
       </div>
     </div>
 
@@ -117,6 +148,25 @@
           <button onclick="sendChat()">Gönder</button>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- GEÇMİŞ SİPARİŞLER -->
+  <div id="panelHistory" class="grid two" style="display:none">
+    <div class="card">
+      <h2>Geçmiş Siparişlerim</h2>
+      <label>Telefon Numaranız</label>
+      <input type="tel" id="historyPhone" placeholder="05xx xxx xx xx">
+      <button onclick="loadHistory()">Siparişlerimi Göster</button>
+      <div id="historyMsg"></div>
+      <div id="myReferralBox" style="display:none" class="tracking-code-box">
+        <div>🎁 Kendi referans kodunuz — arkadaşınız kullanırsa ikinizde indirim kazanır:</div>
+        <div class="code" id="myReferralCode"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Siparişler</h2>
+      <div id="historyList"><div class="empty-state">Telefon numaranızı girip sorgulayın.</div></div>
     </div>
   </div>
 

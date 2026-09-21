@@ -48,10 +48,89 @@ function showAdminTab(tab) {
   document.getElementById('panelOrders').style.display = tab === 'orders' ? 'block' : 'none';
   document.getElementById('panelCouriers').style.display = tab === 'couriers' ? 'block' : 'none';
   document.getElementById('panelChat').style.display = tab === 'chat' ? 'grid' : 'none';
+  document.getElementById('panelBusiness').style.display = tab === 'business' ? 'grid' : 'none';
+  document.getElementById('panelAnalytics').style.display = tab === 'analytics' ? 'block' : 'none';
   document.getElementById('tabOrders').classList.toggle('active', tab === 'orders');
   document.getElementById('tabCouriers').classList.toggle('active', tab === 'couriers');
   document.getElementById('tabChat').classList.toggle('active', tab === 'chat');
+  document.getElementById('tabBusiness').classList.toggle('active', tab === 'business');
+  document.getElementById('tabAnalytics').classList.toggle('active', tab === 'analytics');
   if (tab === 'chat') renderChatPicker();
+  if (tab === 'business') loadBusinesses();
+  if (tab === 'analytics') loadAnalytics();
+}
+
+// ---- İşletmeler (B2B) ----
+async function loadBusinesses() {
+  const res = await fetch('/api/admin/businesses');
+  const list = await res.json();
+  const el = document.getElementById('businessList');
+  if (!list.length) { el.innerHTML = '<div class="empty-state">Henüz işletme eklenmedi.</div>'; return; }
+  el.innerHTML = list.map(b => `
+    <div class="order-item">
+      <div class="row">
+        <strong>${escapeHtml(b.name)}</strong>
+        <span class="badge ${b.active ? 'teslim-edildi' : 'iptal'}">${b.active ? 'Aktif' : 'Pasif'}</span>
+      </div>
+      <p class="meta">${escapeHtml(b.contactPhone || '')}</p>
+      <div class="apikey-box">${b.apiKey}</div>
+      <button class="ghost" style="margin-top:8px" onclick="toggleBusiness('${b.id}')">${b.active ? 'Pasifleştir' : 'Aktifleştir'}</button>
+    </div>
+  `).join('');
+}
+
+async function createBusiness() {
+  const name = document.getElementById('bizName').value.trim();
+  const contactPhone = document.getElementById('bizPhone').value.trim();
+  const msgEl = document.getElementById('bizMsg');
+  msgEl.innerHTML = '';
+  if (!name) { msgEl.innerHTML = '<div class="msg err">İşletme adı girin.</div>'; return; }
+  try {
+    const res = await fetch('/api/admin/businesses', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, contactPhone })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+    msgEl.innerHTML = `<div class="msg ok">İşletme oluşturuldu! API anahtarı aşağıdaki listede.</div>`;
+    document.getElementById('bizName').value = '';
+    document.getElementById('bizPhone').value = '';
+    loadBusinesses();
+  } catch (err) {
+    msgEl.innerHTML = `<div class="msg err">${err.message}</div>`;
+  }
+}
+
+async function toggleBusiness(id) {
+  await fetch(`/api/admin/businesses/${id}/toggle`, { method: 'POST' });
+  loadBusinesses();
+}
+
+// ---- Analitik ----
+async function loadAnalytics() {
+  const res = await fetch('/api/admin/analytics');
+  const d = await res.json();
+  document.getElementById('analyticsStats').innerHTML = `
+    <div class="stat-card"><div class="num">${d.totalOrders30d}</div><div class="label">Son 30 Gün Sipariş</div></div>
+    <div class="stat-card"><div class="num">${d.totalRevenue} ₺</div><div class="label">Toplam Gelir (teslim edilen)</div></div>
+    <div class="stat-card"><div class="num">${d.avgDistanceKm ?? '-'} km</div><div class="label">Ortalama Mesafe</div></div>
+  `;
+  const maxHour = Math.max(1, ...d.byHour);
+  document.getElementById('hourChart').innerHTML = d.byHour.map((v, h) => `
+    <div class="bar-row">
+      <span class="bar-label">${String(h).padStart(2, '0')}:00</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${(v / maxHour) * 100}%"></div></div>
+      <span class="bar-value">${v}</span>
+    </div>
+  `).join('');
+  const maxDay = Math.max(1, ...Object.values(d.byDay));
+  document.getElementById('dayChart').innerHTML = Object.entries(d.byDay).map(([day, v]) => `
+    <div class="bar-row">
+      <span class="bar-label">${day}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${(v / maxDay) * 100}%"></div></div>
+      <span class="bar-value">${v}</span>
+    </div>
+  `).join('');
 }
 
 function statusLabel(status) {
@@ -134,10 +213,11 @@ function renderCouriers(list) {
   el.innerHTML = list.map(c => `
     <div class="order-item">
       <div class="row">
-        <strong>${escapeHtml(c.name)}</strong>
+        <strong>${escapeHtml(c.name)} ${c.badge && c.badge.emoji ? c.badge.emoji : ''}</strong>
         <span class="badge ${c.active ? 'teslim-edildi' : 'beklemede'}">${c.active ? 'Aktif' : 'Onay Bekliyor'}</span>
       </div>
-      <p class="meta">${escapeHtml(c.phone)} ${c.avg ? '— ' + c.avg + ' ⭐ (' + c.count + ' değerlendirme)' : ''}</p>
+      <p class="meta">${escapeHtml(c.phone)} — ${c.deliveredCount} teslimat ${c.avg ? '— ' + c.avg + ' ⭐ (' + c.count + ' değerlendirme)' : ''}</p>
+      ${c.hasIdPhoto ? `<a class="courier-photo-link" href="/api/admin/couriers/${c.id}/id-photo" target="_blank">🪪 Kimlik fotoğrafını görüntüle</a>` : '<p class="meta" style="color:var(--danger)">Kimlik fotoğrafı yok</p>'}
       <div class="row" style="margin-top:8px;">
         ${!c.active ? `<button onclick="approveCourier('${c.id}')">Onayla</button>` : `<button class="ghost" onclick="deactivateCourier('${c.id}')">Devre Dışı Bırak</button>`}
       </div>

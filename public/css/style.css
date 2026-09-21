@@ -289,3 +289,12 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .stat-card:hover .num { transform: scale(1.08); }
 button, .btn { transition: transform 0.12s, background 0.15s; }
 button:hover:not(:disabled), .btn:hover { transform: translateY(-1px); }
+
+/* ---- Basit bar grafik (admin analitik) ---- */
+.bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; font-size: 0.82rem; }
+.bar-row .bar-label { width: 46px; flex-shrink: 0; color: var(--muted); }
+.bar-row .bar-track { flex: 1; background: #eef0f4; border-radius: 6px; overflow: hidden; height: 16px; }
+.bar-row .bar-fill { background: linear-gradient(90deg, var(--primary), var(--primary-dark)); height: 100%; border-radius: 6px; transition: width 0.4s ease; }
+.bar-row .bar-value { width: 24px; text-align: right; font-weight: 700; color: var(--secondary); }
+.apikey-box { font-family: monospace; background: #eef0f4; padding: 8px 10px; border-radius: 8px; font-size: 0.78rem; word-break: break-all; margin-top: 6px; }
+.courier-photo-link { font-size: 0.78rem; color: var(--primary); cursor: pointer; text-decoration: underline; }

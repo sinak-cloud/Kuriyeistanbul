@@ -41,12 +41,23 @@ function toggleMap(which) {
 function showTab(tab) {
   document.getElementById('panelNew').style.display = tab === 'new' ? 'grid' : 'none';
   document.getElementById('panelTrack').style.display = tab === 'track' ? 'grid' : 'none';
+  document.getElementById('panelHistory').style.display = tab === 'history' ? 'grid' : 'none';
   document.getElementById('tabNew').classList.toggle('active', tab === 'new');
   document.getElementById('tabTrack').classList.toggle('active', tab === 'track');
+  document.getElementById('tabHistory').classList.toggle('active', tab === 'history');
+}
+
+function toggleSchedule() {
+  const scheduled = document.querySelector('input[name="whenType"]:checked').value === 'scheduled';
+  document.getElementById('scheduledFor').style.display = scheduled ? 'block' : 'none';
 }
 
 document.getElementById('orderForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const whenType = document.querySelector('input[name="whenType"]:checked').value;
+  const scheduledInput = document.getElementById('scheduledFor').value;
+  const stops = document.getElementById('extraStops').value.split(',').map(s => s.trim()).filter(Boolean);
+
   const body = {
     customerName: document.getElementById('customerName').value.trim(),
     customerPhone: document.getElementById('customerPhone').value.trim(),
@@ -57,7 +68,10 @@ document.getElementById('orderForm').addEventListener('submit', async (e) => {
     pickupLat: pickupCoords?.lat ?? null,
     pickupLng: pickupCoords?.lng ?? null,
     dropoffLat: dropoffCoords?.lat ?? null,
-    dropoffLng: dropoffCoords?.lng ?? null
+    dropoffLng: dropoffCoords?.lng ?? null,
+    stops,
+    scheduledFor: whenType === 'scheduled' && scheduledInput ? new Date(scheduledInput).toISOString() : null,
+    referralCode: document.getElementById('referralCode').value.trim()
   };
   const msgEl = document.getElementById('orderMsg');
   msgEl.innerHTML = '';
@@ -70,8 +84,11 @@ document.getElementById('orderForm').addEventListener('submit', async (e) => {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Bir hata oluştu.');
     document.getElementById('newTrackingCode').textContent = data.trackingCode;
+    document.getElementById('newOrderPrice').textContent = `Ücret: ${data.price} ₺`;
+    document.getElementById('newDeliveryCode').textContent = data.deliveryCode;
     document.getElementById('trackingResult').style.display = 'block';
     document.getElementById('orderForm').reset();
+    toggleSchedule();
   } catch (err) {
     msgEl.innerHTML = `<div class="msg err">${err.message}</div>`;
   }
@@ -107,6 +124,26 @@ async function trackOrder() {
     document.getElementById('detPickup').textContent = data.order.pickupAddress;
     document.getElementById('detDropoff').textContent = data.order.dropoffAddress;
     document.getElementById('detPackage').textContent = data.order.packageInfo || '-';
+    document.getElementById('detPrice').textContent = data.order.price != null ? data.order.price + ' ₺' : '-';
+    if (data.order.stops && data.order.stops.length) {
+      document.getElementById('detStopsRow').style.display = 'block';
+      document.getElementById('detStops').textContent = data.order.stops.join(', ');
+    } else {
+      document.getElementById('detStopsRow').style.display = 'none';
+    }
+    if (data.order.scheduledFor) {
+      document.getElementById('detScheduleRow').style.display = 'block';
+      document.getElementById('detSchedule').textContent = new Date(data.order.scheduledFor).toLocaleString('tr-TR');
+    } else {
+      document.getElementById('detScheduleRow').style.display = 'none';
+    }
+    const codeBox = document.getElementById('detCodeBox');
+    if (['kabul edildi', 'yolda'].includes(data.order.status) && data.deliveryCode) {
+      codeBox.style.display = 'block';
+      document.getElementById('detDeliveryCode').textContent = data.deliveryCode;
+    } else {
+      codeBox.style.display = 'none';
+    }
     if (data.order.courierName) {
       document.getElementById('detCourierRow').style.display = 'block';
       document.getElementById('detCourier').textContent = data.order.courierName;
@@ -247,6 +284,34 @@ document.querySelectorAll('#starPicker span').forEach(star => {
     });
   });
 });
+
+// ---- Geçmiş Siparişler ----
+async function loadHistory() {
+  const phone = document.getElementById('historyPhone').value.trim();
+  const msgEl = document.getElementById('historyMsg');
+  msgEl.innerHTML = '';
+  if (!phone) { msgEl.innerHTML = '<div class="msg err">Telefon numarası girin.</div>'; return; }
+  try {
+    const res = await fetch(`/api/customers/${encodeURIComponent(phone)}/orders`);
+    const data = await res.json();
+    document.getElementById('myReferralBox').style.display = 'block';
+    document.getElementById('myReferralCode').textContent = data.referralCode;
+    const el = document.getElementById('historyList');
+    if (!data.orders.length) { el.innerHTML = '<div class="empty-state">Bu numarayla kayıtlı sipariş bulunamadı.</div>'; return; }
+    el.innerHTML = data.orders.map(o => `
+      <div class="order-item">
+        <div class="row">
+          <strong>${o.trackingCode}</strong>
+          <span class="badge ${o.status.replace(/\s+/g, '-')}">${statusLabel(o.status)}</span>
+        </div>
+        <p class="meta">${new Date(o.createdAt).toLocaleString('tr-TR')} — ${escapeHtml(o.pickupAddress)} → ${escapeHtml(o.dropoffAddress)}</p>
+        <p class="meta">${o.price} ₺ ${o.rating ? '— sizin puanınız: ' + o.rating + ' ⭐' : ''}</p>
+      </div>
+    `).join('');
+  } catch (err) {
+    msgEl.innerHTML = `<div class="msg err">Bir hata oluştu.</div>`;
+  }
+}
 
 async function submitRating() {
   const msgEl = document.getElementById('ratingMsg');

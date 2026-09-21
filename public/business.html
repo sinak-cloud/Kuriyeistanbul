@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>İşletmeler için Kurye Çözümü — KuriyeIstanbul.com</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0b2545">
+<link rel="icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">🛵 Kuriye<span class="dot">Istanbul</span> — İşletmeler</div>
+  <nav class="toplinks">
+    <a href="/">Müşteri Girişi</a>
+    <a href="/courier.html">Kurye Girişi</a>
+  </nav>
+</header>
+
+<div class="container">
+  <div class="hero">
+    <span class="hero-badge">🏢 Restoranlar, mağazalar ve e-ticaret işletmeleri için</span>
+    <h1>Kendi kurye filonuzu kurmadan, aynı gün teslimat</h1>
+    <p>Sipariş akışınızı KuriyeIstanbul'a bağlayın; siz sipariş oluşturun, en yakın müsait kurye otomatik bilgilendirilsin. Kendi sisteminizden API ile veya bizim panelimizden manuel olarak sipariş girebilirsiniz.</p>
+  </div>
+
+  <div class="grid two">
+    <div class="card">
+      <h2>🔌 Basit API Entegrasyonu</h2>
+      <p style="color:var(--muted)">Size özel bir API anahtarıyla, sipariş sisteminizden doğrudan sipariş oluşturabilirsiniz:</p>
+      <pre style="background:#0b2545; color:#e5e7eb; padding:14px; border-radius:10px; overflow-x:auto; font-size:0.8rem;">POST /api/business/orders
+X-Api-Key: sizin-anahtarınız
+
+{
+  "customerName": "Müşteri Adı",
+  "customerPhone": "05xx...",
+  "pickupAddress": "İşletme adresiniz",
+  "dropoffAddress": "Müşteri adresi"
+}</pre>
+      <p style="color:var(--muted); font-size:0.85rem;">API anahtarınızı almak için bizimle iletişime geçin.</p>
+    </div>
+
+    <div class="card">
+      <h2>✅ Neden KuriyeIstanbul?</h2>
+      <ul style="color:var(--muted); line-height:1.9;">
+        <li>Kendi kurye filonuzu yönetme derdi olmadan, ihtiyaç anında kurye</li>
+        <li>Canlı konum takibi ve müşteri ile otomatik SMS/bildirim akışı</li>
+        <li>Teslimat kodu (OTP) ile teslimat doğrulaması — kayıp/anlaşmazlık riski düşük</li>
+        <li>Mesafeye göre şeffaf fiyatlandırma</li>
+        <li>Kayıtlı, onaylı ve puanlı kurye ağı</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:24px;">
+    <h2>🛡️ Teslimat Güvencesi</h2>
+    <p style="color:var(--muted)">
+      Her teslimat, alım ve teslim noktalarında dijital kayıt (zaman damgası, konum, teslimat kodu) ile belgelenir; bu da anlaşmazlık durumunda şeffaf bir kayıt sağlar.
+    </p>
+    <p style="color:var(--muted); font-size:0.85rem; margin-top:8px;">
+      <strong>Not:</strong> Bu bir sigorta poliçesi değildir — resmi bir kargo/nakliye sigortası kapsamı için ayrıca bir sigorta şirketiyle anlaşma yapılması gerekir. İsterseniz bu konuda da size yol gösterebiliriz.
+    </p>
+  </div>
+
+  <div class="card" style="margin-top:24px; text-align:center;">
+    <h2>Hemen Başlayın</h2>
+    <p style="color:var(--muted)">İşletmeniz için API anahtarı almak veya sorularınız için bize WhatsApp'tan ulaşın.</p>
+    <a class="btn" id="whatsappCta" href="#" target="_blank" rel="noopener">💬 WhatsApp ile İletişime Geç</a>
+  </div>
+
+  <div class="footer-note">© 2026 KuriyeIstanbul.com — İşletmeler için kurye koordinasyon çözümü</div>
+</div>
+
+<script src="/js/config.js"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('whatsappCta').href = getWhatsappLink('Merhaba, işletmem için KuriyeIstanbul API entegrasyonu hakkında bilgi almak istiyorum.');
+  });
+</script>
+<script src="/js/pwa.js"></script>
+</body>
+</html>

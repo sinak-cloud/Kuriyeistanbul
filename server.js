@@ -6,7 +6,22 @@ const cookieSession = require('cookie-session');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
+const multer = require('multer');
 const db = require('./db');
+
+// Kurye kimlik fotoğrafları — kalıcı volume altında, herkese açık değil (sadece admin görebilir)
+const ID_PHOTOS_DIR = path.join(__dirname, 'data', 'id-photos');
+fs.mkdirSync(ID_PHOTOS_DIR, { recursive: true });
+const idPhotoUpload = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => cb(null, ID_PHOTOS_DIR),
+    filename: (req, file, cb) => cb(null, uuidv4() + path.extname(file.originalname || '.jpg'))
+  }),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => cb(null, /^image\//.test(file.mimetype))
+});
 
 const app = express();
 const server = http.createServer(app);
@@ -32,6 +47,47 @@ function genTrackingCode() {
   return 'KI-' + Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
+function genDeliveryCode() {
+  return String(Math.floor(1000 + Math.random() * 9000)); // 4 haneli teslimat kodu
+}
+
+function genReferralCode(phone) {
+  const clean = (phone || '').replace(/\D/g, '');
+  return 'KI' + clean.slice(-5);
+}
+
+function genApiKey() {
+  return 'biz_' + crypto.randomBytes(24).toString('hex');
+}
+
+// Kuryenin teslimat sayısına göre rozet seviyesi
+function courierBadge(deliveryCount) {
+  if (deliveryCount >= 100) return { level: 'Altın', emoji: '🥇' };
+  if (deliveryCount >= 50) return { level: 'Gümüş', emoji: '🥈' };
+  if (deliveryCount >= 10) return { level: 'Bronz', emoji: '🥉' };
+  return { level: null, emoji: null };
+}
+
+// ISO hafta anahtarı (yıl-hafta), haftalık kazanç gruplaması için
+function isoWeekKey(dateStr) {
+  const d = new Date(dateStr);
+  const target = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  const dayNum = (target.getUTCDay() + 6) % 7;
+  target.setUTCDate(target.getUTCDate() - dayNum + 3);
+  const firstThursday = new Date(Date.UTC(target.getUTCFullYear(), 0, 4));
+  const week = 1 + Math.round(((target - firstThursday) / 86400000 - 3 + ((firstThursday.getUTCDay() + 6) % 7)) / 7);
+  return `${target.getUTCFullYear()}-H${String(week).padStart(2, '0')}`;
+}
+
+function requireBusinessApiKey(req, res, next) {
+  const key = req.headers['x-api-key'];
+  if (!key) return res.status(401).json({ error: 'X-Api-Key başlığı gerekli.' });
+  const business = db.get('businesses').find({ apiKey: key, active: true }).value();
+  if (!business) return res.status(401).json({ error: 'Geçersiz veya pasif API anahtarı.' });
+  req.business = business;
+  next();
+}
+
 function requireAdmin(req, res, next) {
   if (req.session && req.session.role === 'admin') return next();
   return res.status(401).json({ error: 'Yetkisiz erişim. Lütfen admin girişi yapın.' });
@@ -43,7 +99,7 @@ function requireCourier(req, res, next) {
 }
 
 function publicOrder(order) {
-  // Müşteriye gösterilecek alanlar
+  // Müşteriye gösterilecek alanlar (teslimat kodu HARİÇ — o sadece track endpoint'inde, sahibine gösterilir)
   return {
     id: order.id,
     trackingCode: order.trackingCode,
@@ -58,6 +114,8 @@ function publicOrder(order) {
     courierName: order.courierName || null,
     price: order.price ?? null,
     rating: order.rating ?? null,
+    scheduledFor: order.scheduledFor || null,
+    stops: order.stops || [],
     createdAt: order.createdAt,
     updatedAt: order.updatedAt
   };
@@ -84,18 +142,40 @@ function courierRatingStats(courierId) {
 
 // ================= MÜŞTERİ (CUSTOMER) API =================
 
-// Yeni sipariş oluştur
-app.post('/api/orders', (req, res) => {
+const PRICE_PER_KM = Number(process.env.PRICE_PER_KM || 8); // mesafeye göre ek ücret (₺/km)
+const REFERRAL_DISCOUNT = Number(process.env.REFERRAL_DISCOUNT || 20); // ₺
+
+// Sipariş oluşturma mantığı — hem web formu hem işletme API'si burayı kullanır
+function createOrder(data, source) {
   const {
     customerName, customerPhone, pickupAddress, dropoffAddress, packageInfo, notes,
-    pickupLat, pickupLng, dropoffLat, dropoffLng
-  } = req.body;
+    pickupLat, pickupLng, dropoffLat, dropoffLng, scheduledFor, stops, referralCode
+  } = data;
   if (!customerName || !customerPhone || !pickupAddress || !dropoffAddress) {
-    return res.status(400).json({ error: 'Lütfen tüm zorunlu alanları doldurun.' });
+    return { error: 'Lütfen tüm zorunlu alanları doldurun.' };
   }
+  const distKm = haversineKm(pickupLat, pickupLng, dropoffLat, dropoffLng);
+  let price = BASE_DELIVERY_FEE + (distKm ? Math.round(distKm * PRICE_PER_KM) : 0);
+
+  let appliedReferral = null;
+  if (referralCode && referralCode.trim()) {
+    const code = referralCode.trim().toUpperCase();
+    const ownCode = genReferralCode(customerPhone);
+    if (code !== ownCode) { // kendi kodunu kullanamaz
+      price = Math.max(0, price - REFERRAL_DISCOUNT);
+      appliedReferral = code;
+      let ref = db.get('referrals').find({ code }).value();
+      if (ref) db.get('referrals').find({ code }).assign({ uses: (ref.uses || 0) + 1 }).write();
+      else db.get('referrals').push({ code, uses: 1, createdAt: new Date().toISOString() }).write();
+    }
+  }
+
   const order = {
     id: uuidv4(),
     trackingCode: genTrackingCode(),
+    deliveryCode: genDeliveryCode(),
+    referralCodeOfOwner: genReferralCode(customerPhone),
+    appliedReferral,
     customerName,
     customerPhone,
     pickupAddress,
@@ -104,21 +184,52 @@ app.post('/api/orders', (req, res) => {
     pickupLng: (typeof pickupLng === 'number') ? pickupLng : null,
     dropoffLat: (typeof dropoffLat === 'number') ? dropoffLat : null,
     dropoffLng: (typeof dropoffLng === 'number') ? dropoffLng : null,
+    distanceKm: distKm,
     packageInfo: packageInfo || '',
     notes: notes || '',
+    stops: Array.isArray(stops) ? stops.filter(s => s && s.trim()).slice(0, 5) : [],
+    scheduledFor: scheduledFor || null, // null = şimdi; ISO string = planlı
     status: 'beklemede',
     courierId: null,
     courierName: null,
-    price: BASE_DELIVERY_FEE,
+    price,
     rating: null,
     ratingComment: '',
+    source: source || 'web', // 'web' | 'business:<businessId>'
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };
   db.get('orders').push(order).write();
   io.to('admins').emit('order:new', order);
   io.to('couriers').emit('order:new', publicOrder(order));
-  res.json({ success: true, trackingCode: order.trackingCode, orderId: order.id });
+  return { order };
+}
+
+// Yeni sipariş oluştur (web formu)
+app.post('/api/orders', (req, res) => {
+  const result = createOrder(req.body, 'web');
+  if (result.error) return res.status(400).json({ error: result.error });
+  const { order } = result;
+  res.json({ success: true, trackingCode: order.trackingCode, orderId: order.id, price: order.price, deliveryCode: order.deliveryCode });
+});
+
+// ---- İşletme (B2B) API — X-Api-Key başlığı ile sipariş oluşturma ----
+app.post('/api/business/orders', requireBusinessApiKey, (req, res) => {
+  const result = createOrder(req.body, 'business:' + req.business.id);
+  if (result.error) return res.status(400).json({ error: result.error });
+  const { order } = result;
+  res.json({ success: true, trackingCode: order.trackingCode, orderId: order.id, price: order.price, deliveryCode: order.deliveryCode });
+});
+
+// Bir telefon numarasına ait geçmiş siparişler (basit hesap — şifresiz, telefonla arama)
+app.get('/api/customers/:phone/orders', (req, res) => {
+  const phone = req.params.phone.trim();
+  if (!phone) return res.status(400).json({ error: 'Telefon numarası gerekli.' });
+  const orders = db.get('orders').filter({ customerPhone: phone }).orderBy(['createdAt'], ['desc']).value();
+  res.json({
+    referralCode: genReferralCode(phone),
+    orders: orders.map(publicOrder)
+  });
 });
 
 // Takip kodu ile sipariş sorgula
@@ -131,7 +242,12 @@ app.get('/api/orders/track/:code', (req, res) => {
   if (courierLocation && order.dropoffLat && order.dropoffLng) {
     etaKm = haversineKm(courierLocation.lat, courierLocation.lng, order.dropoffLat, order.dropoffLng);
   }
-  res.json({ order: publicOrder(order), messages, courierLocation, etaKm });
+  res.json({
+    order: publicOrder(order),
+    messages, courierLocation, etaKm,
+    deliveryCode: order.deliveryCode, // sadece sipariş sahibi, kod bilerek buraya ulaşan kişi görür
+    referralCode: order.referralCodeOfOwner
+  });
 });
 
 // Müşteri teslimattan sonra kuryeyi puanlar
@@ -154,7 +270,7 @@ app.post('/api/orders/track/:code/rate', (req, res) => {
 
 // ================= KURYE (COURIER) API =================
 
-app.post('/api/courier/register', (req, res) => {
+app.post('/api/courier/register', idPhotoUpload.single('idPhoto'), (req, res) => {
   const { name, phone, password } = req.body;
   if (!name || !phone || !password) return res.status(400).json({ error: 'Tüm alanları doldurun.' });
   const existing = db.get('couriers').find({ phone }).value();
@@ -165,10 +281,11 @@ app.post('/api/courier/register', (req, res) => {
     phone,
     passwordHash: bcrypt.hashSync(password, 10),
     active: false, // admin onayı bekliyor
+    idPhotoFile: req.file ? req.file.filename : null,
     createdAt: new Date().toISOString()
   };
   db.get('couriers').push(courier).write();
-  io.to('admins').emit('courier:new', { id: courier.id, name: courier.name, phone: courier.phone });
+  io.to('admins').emit('courier:new', { id: courier.id, name: courier.name, phone: courier.phone, hasIdPhoto: !!courier.idPhotoFile });
   res.json({ success: true, message: 'Kayıt alındı. Hesabınız admin onayından sonra aktif olacaktır.' });
 });
 
@@ -192,21 +309,41 @@ app.post('/api/courier/logout', (req, res) => {
 app.get('/api/courier/me', requireCourier, (req, res) => {
   const courier = db.get('couriers').find({ id: req.session.courierId }).value();
   if (!courier) return res.status(404).json({ error: 'Kurye bulunamadı.' });
-  res.json({ id: courier.id, name: courier.name, phone: courier.phone, ...courierRatingStats(courier.id) });
+  const deliveredCount = db.get('orders').filter({ courierId: courier.id, status: 'teslim edildi' }).value().length;
+  res.json({
+    id: courier.id, name: courier.name, phone: courier.phone,
+    badge: courierBadge(deliveredCount), deliveredCount,
+    ...courierRatingStats(courier.id)
+  });
 });
 
-// Kuryenin kazanç özeti: toplam teslimat, toplam kazanç, bugünkü kazanç
+// Talep haritası: bekleyen tüm siparişlerin alım noktaları (kurye için yoğunluk haritası)
+app.get('/api/courier/demand-map', requireCourier, (req, res) => {
+  const pending = db.get('orders').filter({ status: 'beklemede' }).value();
+  res.json(pending
+    .filter(o => o.pickupLat && o.pickupLng)
+    .map(o => ({ id: o.id, lat: o.pickupLat, lng: o.pickupLng, price: o.price })));
+});
+
+// Kuryenin kazanç özeti: toplam teslimat, toplam kazanç, bugünkü + haftalık kazanç
 app.get('/api/courier/earnings', requireCourier, (req, res) => {
   const delivered = db.get('orders')
     .filter(o => o.courierId === req.session.courierId && o.status === 'teslim edildi')
     .value();
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayOrders = delivered.filter(o => (o.updatedAt || '').slice(0, 10) === todayStr);
+  const thisWeekKey = isoWeekKey(new Date().toISOString());
+  const weekOrders = delivered.filter(o => isoWeekKey(o.updatedAt) === thisWeekKey);
+  const deliveredCount = delivered.length;
   res.json({
-    totalDeliveries: delivered.length,
+    totalDeliveries: deliveredCount,
     totalEarnings: delivered.reduce((s, o) => s + (o.price || 0), 0),
     todayDeliveries: todayOrders.length,
     todayEarnings: todayOrders.reduce((s, o) => s + (o.price || 0), 0),
+    weekDeliveries: weekOrders.length,
+    weekEarnings: weekOrders.reduce((s, o) => s + (o.price || 0), 0),
+    badge: courierBadge(deliveredCount),
+    nextBadgeIn: deliveredCount >= 100 ? 0 : deliveredCount >= 50 ? 100 - deliveredCount : deliveredCount >= 10 ? 50 - deliveredCount : 10 - deliveredCount,
     ...courierRatingStats(req.session.courierId),
     recent: delivered.slice(-10).reverse().map(o => ({
       trackingCode: o.trackingCode, price: o.price, updatedAt: o.updatedAt, rating: o.rating
@@ -252,11 +389,16 @@ app.post('/api/courier/orders/:id/accept', requireCourier, (req, res) => {
 });
 
 app.patch('/api/courier/orders/:id/status', requireCourier, (req, res) => {
-  const { status } = req.body;
+  const { status, deliveryCode } = req.body;
   const allowed = ['yolda', 'teslim edildi', 'iptal'];
   if (!allowed.includes(status)) return res.status(400).json({ error: 'Geçersiz durum.' });
   const order = db.get('orders').find({ id: req.params.id, courierId: req.session.courierId }).value();
   if (!order) return res.status(404).json({ error: 'Sipariş bulunamadı veya size ait değil.' });
+  if (status === 'teslim edildi') {
+    if (!deliveryCode || String(deliveryCode).trim() !== String(order.deliveryCode)) {
+      return res.status(400).json({ error: 'Teslimat kodu hatalı. Lütfen müşteriden kodu tekrar isteyin.' });
+    }
+  }
   db.get('orders').find({ id: order.id }).assign({ status, updatedAt: new Date().toISOString() }).write();
   const updated = db.get('orders').find({ id: order.id }).value();
   if (['teslim edildi', 'iptal'].includes(status)) delete liveLocations[order.id];
@@ -292,11 +434,71 @@ app.get('/api/admin/orders', requireAdmin, (req, res) => {
 });
 
 app.get('/api/admin/couriers', requireAdmin, (req, res) => {
-  const couriers = db.get('couriers').value().map(c => ({
-    id: c.id, name: c.name, phone: c.phone, active: c.active, createdAt: c.createdAt,
-    ...courierRatingStats(c.id)
-  }));
+  const couriers = db.get('couriers').value().map(c => {
+    const deliveredCount = db.get('orders').filter({ courierId: c.id, status: 'teslim edildi' }).value().length;
+    return {
+      id: c.id, name: c.name, phone: c.phone, active: c.active, createdAt: c.createdAt,
+      hasIdPhoto: !!c.idPhotoFile, deliveredCount, badge: courierBadge(deliveredCount),
+      ...courierRatingStats(c.id)
+    };
+  });
   res.json(couriers);
+});
+
+// Kurye kimlik fotoğrafı — sadece admin oturumu ile görülebilir
+app.get('/api/admin/couriers/:id/id-photo', requireAdmin, (req, res) => {
+  const courier = db.get('couriers').find({ id: req.params.id }).value();
+  if (!courier || !courier.idPhotoFile) return res.status(404).json({ error: 'Fotoğraf bulunamadı.' });
+  res.sendFile(path.join(ID_PHOTOS_DIR, courier.idPhotoFile));
+});
+
+// ---- İşletme (B2B) API anahtarı yönetimi ----
+app.get('/api/admin/businesses', requireAdmin, (req, res) => {
+  res.json(db.get('businesses').value());
+});
+
+app.post('/api/admin/businesses', requireAdmin, (req, res) => {
+  const { name, contactPhone } = req.body;
+  if (!name) return res.status(400).json({ error: 'İşletme adı gerekli.' });
+  const business = {
+    id: uuidv4(), name, contactPhone: contactPhone || '',
+    apiKey: genApiKey(), active: true, createdAt: new Date().toISOString()
+  };
+  db.get('businesses').push(business).write();
+  res.json({ success: true, business });
+});
+
+app.post('/api/admin/businesses/:id/toggle', requireAdmin, (req, res) => {
+  const biz = db.get('businesses').find({ id: req.params.id }).value();
+  if (!biz) return res.status(404).json({ error: 'İşletme bulunamadı.' });
+  db.get('businesses').find({ id: req.params.id }).assign({ active: !biz.active }).write();
+  res.json({ success: true });
+});
+
+// ---- Basit analitik: saat/gün dağılımı, toplam mesafe, son 30 gün ----
+app.get('/api/admin/analytics', requireAdmin, (req, res) => {
+  const orders = db.get('orders').value();
+  const byHour = Array(24).fill(0);
+  const byDay = {}; // 'Pzt'..'Paz'
+  const dayNames = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
+  dayNames.forEach(d => byDay[d] = 0);
+  const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  let totalRevenue = 0, totalDistance = 0, distCount = 0;
+  orders.forEach(o => {
+    const t = new Date(o.createdAt);
+    if (t.getTime() >= thirtyDaysAgo) {
+      byHour[t.getHours()]++;
+      byDay[dayNames[t.getDay()]]++;
+    }
+    if (o.status === 'teslim edildi') totalRevenue += (o.price || 0);
+    if (typeof o.distanceKm === 'number') { totalDistance += o.distanceKm; distCount++; }
+  });
+  res.json({
+    byHour, byDay,
+    totalRevenue,
+    avgDistanceKm: distCount ? Math.round((totalDistance / distCount) * 10) / 10 : null,
+    totalOrders30d: orders.filter(o => new Date(o.createdAt).getTime() >= thirtyDaysAgo).length
+  });
 });
 
 // Admin bir siparişin ücretini değiştirir

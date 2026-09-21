@@ -46,10 +46,12 @@
         <input type="tel" id="regPhone" required placeholder="05xx xxx xx xx">
         <label>Şifre</label>
         <input type="password" id="regPassword" required minlength="4">
+        <label>Kimlik Fotoğrafı (T.C. kimlik veya ehliyet)</label>
+        <input type="file" id="regIdPhoto" accept="image/*">
         <button type="submit" class="secondary">Kayıt Ol</button>
       </form>
       <div id="registerMsg"></div>
-      <p style="font-size:0.85rem; color:var(--muted); margin-top:10px;">Kayıt sonrası hesabınızın admin tarafından onaylanması gerekir.</p>
+      <p style="font-size:0.85rem; color:var(--muted); margin-top:10px;">Kayıt sonrası hesabınızın admin tarafından onaylanması gerekir. Kimlik fotoğrafı yalnızca admin tarafından görüntülenir, güvenliğiniz ve müşteri güveni için istenir.</p>
     </div>
   </div>
 
@@ -61,6 +63,7 @@
       <button id="tabAvail" class="active" onclick="showDashTab('avail')">📦 Müsait Siparişler</button>
       <button id="tabMine" onclick="showDashTab('mine')">🚚 Siparişlerim</button>
       <button id="tabEarn" onclick="showDashTab('earn')">💰 Kazançlarım</button>
+      <button id="tabDemand" onclick="showDashTab('demand')">🗺️ Talep Haritası</button>
     </div>
 
     <div id="panelAvail">
@@ -83,12 +86,27 @@
         <div class="earn-card">
           <div class="label">Bugünkü Kazanç</div>
           <div class="big" id="earnToday">-</div>
-          <div class="label" style="margin-top:10px">Ortalama Puan</div>
+          <div class="label" style="margin-top:10px">Bu Hafta</div>
+          <div class="big" id="earnWeek">-</div>
+        </div>
+      </div>
+      <div class="grid two" style="margin-top:14px">
+        <div class="earn-card" style="background:linear-gradient(135deg,#f59e0b,#b45309)">
+          <div class="label">Ortalama Puan</div>
           <div class="big" id="earnRating">-</div>
+        </div>
+        <div class="earn-card" style="background:linear-gradient(135deg,#16a34a,#166534)">
+          <div class="label" id="earnBadgeLabel">Rozet</div>
+          <div class="big" id="earnBadge">-</div>
         </div>
       </div>
       <h2 style="margin-top:24px">Son Teslimatlar</h2>
       <div id="earnRecent"></div>
+    </div>
+
+    <div id="panelDemand" style="display:none">
+      <p class="meta" style="margin-bottom:10px;">Bekleyen tüm siparişlerin alım noktaları — yoğun bölgeleri görüp o tarafa gidebilirsiniz.</p>
+      <div id="demandMap" style="height:420px; border-radius:12px; overflow:hidden;"></div>
     </div>
   </div>
 

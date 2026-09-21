@@ -11,7 +11,9 @@ db.defaults({
   orders: [],
   couriers: [],
   messages: [],
-  admins: []
+  admins: [],
+  businesses: [],
+  referrals: []
 }).write();
 
 // İlk kurulumda varsayılan admin oluştur (kullanıcı adı: admin, şifre: .env'den veya "degistir123")
