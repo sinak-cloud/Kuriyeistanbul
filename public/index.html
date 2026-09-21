@@ -22,9 +22,15 @@
 </header>
 
 <div class="container">
-  <div class="hero">
-    <h1>İstanbul içi hızlı kurye ve paket teslimatı</h1>
-    <p>Siparişinizi oluşturun, size en yakın kurye paketinizi alsın. Kurye ile canlı sohbet edin, teslimatı anlık takip edin.</p>
+  <div class="hero-video-wrap">
+    <video autoplay muted loop playsinline poster="https://assets.mixkit.co/videos/41938/41938-thumb-360-0.jpg">
+      <source src="https://assets.mixkit.co/videos/41938/41938-360.mp4" type="video/mp4">
+    </video>
+    <div class="hero-video-overlay">
+      <span class="hero-badge">🔥 İstanbul'un en hızlı kurye ağı</span>
+      <h1>İstanbul içi hızlı kurye ve paket teslimatı</h1>
+      <p>Siparişinizi oluşturun, size en yakın kurye paketinizi alsın. Kurye ile canlı sohbet edin, teslimatı haritada anlık takip edin.</p>
+    </div>
   </div>
 
   <div class="tabs">
@@ -132,12 +138,23 @@
     <div id="ratingMsg"></div>
   </div>
 
+  <div class="video-section">
+    <h2>🛵 Kuryelerimiz Yollarda</h2>
+    <p class="sub">İstanbul trafiğinde hızlı, güvenilir ve her an ulaşılabilir bir kurye ağı</p>
+    <div class="video-frame">
+      <video controls muted loop playsinline poster="https://assets.mixkit.co/videos/13253/13253-thumb-360-0.jpg">
+        <source src="https://assets.mixkit.co/videos/13253/13253-360.mp4" type="video/mp4">
+      </video>
+    </div>
+  </div>
+
   <div class="footer-note">© 2026 KuriyeIstanbul.com — İstanbul içi kurye ve teslimat koordinasyon platformu</div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/customer.js"></script>
+<script src="/js/config.js"></script>
 <script src="/js/pwa.js"></script>
 </body>
 </html>
